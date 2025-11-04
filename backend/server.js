@@ -65,7 +65,7 @@ app.post("/upload/user", uploadUser.single("image"), (req, res) => {
   if (!req.file)
     return res.status(400).json({ message: "No image file uploaded" });
 
-  const url = `http://localhost:5000/uploads/user/${req.file.filename}`;
+  const url = `https://bloppost-with-betterauth-fixedone-1.onrender.com/uploads/user/${req.file.filename}`;
   res.status(200).json({ message: "✅ User image uploaded", url });
 });
 
@@ -74,7 +74,7 @@ app.post("/upload/post", uploadPost.single("image"), (req, res) => {
   if (!req.file)
     return res.status(400).json({ message: "No image file uploaded" });
 
-  const url = `http://localhost:5000/uploads/post/${req.file.filename}`;
+  const url = `https://bloppost-with-betterauth-fixedone-1.onrender.com/uploads/post/${req.file.filename}`;
   res.status(200).json({ message: "✅ Post image uploaded", url });
 });
 
