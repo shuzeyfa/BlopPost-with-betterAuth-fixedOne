@@ -9,7 +9,7 @@ interface CreatePostClientProps {
 
 export default function CreatePostClient({ session }: CreatePostClientProps) {
   const router = useRouter();
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
 
   const [formData, setFormData] = useState({
     title: "",

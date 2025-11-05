@@ -21,5 +21,5 @@ export const auth = betterAuth({
             },
         },
     },
-    trustedOrigins: ["http://localhost:3000"],
+    trustedOrigins: ["https://blop-post-with-better-auth-fixed-on.vercel.app"],
 });
