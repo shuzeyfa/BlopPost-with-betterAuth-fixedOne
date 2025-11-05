@@ -9,6 +9,7 @@ interface CreatePostClientProps {
 
 export default function CreatePostClient({ session }: CreatePostClientProps) {
   const router = useRouter();
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
   const [formData, setFormData] = useState({
     title: "",
@@ -44,7 +45,7 @@ export default function CreatePostClient({ session }: CreatePostClientProps) {
         const fileData = new FormData();
         fileData.append("image", file);
 
-        const uploadRes = await fetch("https://blogpost-with-betterauth-1.onrender.com/upload/post", {
+        const uploadRes = await fetch(`${baseUrl}/upload/post`, {
           method: "POST",
           body: fileData,
         });
@@ -72,7 +73,7 @@ export default function CreatePostClient({ session }: CreatePostClientProps) {
         readTime: "",
       };
 
-      const res = await fetch("https://blogpost-with-betterauth-1.onrender.com/posts", {
+      const res = await fetch(`${baseUrl}/posts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newPost),

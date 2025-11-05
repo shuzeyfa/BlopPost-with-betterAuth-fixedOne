@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
 import Header from "@/app/component/Header";
 import Footer from "@/app/component/Footer";
 import PostCard from "@/app/component/PostCard";
@@ -25,24 +24,25 @@ export default function HomeClient() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const selectedPostRef = useRef<HTMLDivElement>(null);
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
 
   // ✅ Fetch posts on mount
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        const res = await fetch("http://localhost:5000/posts");
+        const res = await fetch(`${baseUrl}/posts`);
         const data = await res.json();
 
         if (data.length === 0) {
           // if no posts exist, add initial posts
-          await fetch("http://localhost:5000/posts", {
+          await fetch(`${baseUrl}/posts`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(INITIAL_POSTS),
           });
 
           // fetch again after inserting
-          const newRes = await fetch("http://localhost:5000/posts");
+          const newRes = await fetch(`${baseUrl}/posts`);
           const newData = await newRes.json();
           setAllPosts(newData);
         } else {
@@ -87,7 +87,7 @@ export default function HomeClient() {
     );
 
     try {
-      await fetch(`http://localhost:5000/posts/${id}`, {
+      await fetch(`${baseUrl}/posts/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ inc }),

@@ -21,6 +21,7 @@ export default function ProfilePage() {
   });
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -66,7 +67,7 @@ export default function ProfilePage() {
       const fileData = new FormData();
       fileData.append("image", file);
 
-      const uploadRes = await fetch("https://blogpost-with-betterauth-1.onrender.com/upload/user", {
+      const uploadRes = await fetch(`${baseUrl}/upload/user`, {
         method: "POST",
         body: fileData,
       });
