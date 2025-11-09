@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: bloppost-api
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: MONGO_URI
+        sync: false   # you'll set this in Render dashboard
