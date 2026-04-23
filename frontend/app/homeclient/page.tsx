@@ -33,28 +33,37 @@ export default function HomeClient() {
         const res = await fetch(`${baseUrl}/posts`);
         const data = await res.json();
 
+        // ensure it's always an array
+        if (!Array.isArray(data)) {
+          console.error("Invalid posts response:", data);
+          setAllPosts([]);
+          return;
+        }
+
         if (data.length === 0) {
-          // if no posts exist, add initial posts
           await fetch(`${baseUrl}/posts`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+            },
             body: JSON.stringify(INITIAL_POSTS),
           });
 
-          // fetch again after inserting
           const newRes = await fetch(`${baseUrl}/posts`);
           const newData = await newRes.json();
-          setAllPosts(newData);
+
+          setAllPosts(Array.isArray(newData) ? newData : []);
         } else {
           setAllPosts(data);
         }
       } catch (error) {
         console.error("Error fetching posts:", error);
+        setAllPosts([]);
       }
     };
 
     fetchPosts();
-  }, []);
+  }, [baseUrl]);
 
   const handleSelectPost = (post: Post) => {
     setSelectedPost(post);
@@ -82,8 +91,8 @@ export default function HomeClient() {
                 isliked: !p.like.isliked,
               },
             }
-          : p
-      )
+          : p,
+      ),
     );
 
     try {
@@ -103,8 +112,12 @@ export default function HomeClient() {
 
   const filteredPosts =
     activeFilter === "All"
-      ? allPosts
-      : allPosts.filter((p) => p.category === activeFilter);
+      ? Array.isArray(allPosts)
+        ? allPosts
+        : []
+      : Array.isArray(allPosts)
+        ? allPosts.filter((p) => p.category === activeFilter)
+        : [];
 
   const visiblePosts = filteredPosts.slice(0, visibleCount);
 
@@ -117,8 +130,8 @@ export default function HomeClient() {
         <div className="max-w-7xl mx-auto px-4 text-center">
           <h1 className="text-4xl font-extrabold mb-4">All Posts</h1>
           <p className="text-lg max-w-2xl mx-auto">
-            Dive into our collection of insightful articles on technology,
-            design, leadership, and more.
+            Dive into our collection of insightful articles on technology, design, leadership, and
+            more.
           </p>
         </div>
       </section>
@@ -126,23 +139,25 @@ export default function HomeClient() {
       {/* Filter Buttons */}
       <div className="hidden md:block max-w-7xl mx-auto px-4 mb-6">
         <div className="flex justify-center space-x-4">
-          {["All", "Technology", "Design", "JavaScript", "Leadership", "Cloud", "UI/UX"].map((category) => (
-            <button
-              key={category}
-              onClick={() => {
-                setActiveFilter(category);
-                setVisibleCount(6);
-                setSelectedPost(null);
-              }}
-              className={`px-4 py-2 rounded-full font-medium ${
-                activeFilter === category
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-100"
-              }`}
-            >
-              {category}
-            </button>
-          ))}
+          {["All", "Technology", "Design", "JavaScript", "Leadership", "Cloud", "UI/UX"].map(
+            (category) => (
+              <button
+                key={category}
+                onClick={() => {
+                  setActiveFilter(category);
+                  setVisibleCount(6);
+                  setSelectedPost(null);
+                }}
+                className={`px-4 py-2 rounded-full font-medium ${
+                  activeFilter === category
+                    ? "bg-blue-600 text-white"
+                    : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-100"
+                }`}
+              >
+                {category}
+              </button>
+            ),
+          )}
         </div>
       </div>
 
@@ -158,9 +173,13 @@ export default function HomeClient() {
           className="border border-gray-300 rounded-md px-3 py-1.5 w-44 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           name="filter"
         >
-          {["All", "Technology", "Design", "JavaScript", "Leadership", "Cloud", "UI/UX"].map((cat) => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
+          {["All", "Technology", "Design", "JavaScript", "Leadership", "Cloud", "UI/UX"].map(
+            (cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ),
+          )}
         </select>
       </div>
 
@@ -200,9 +219,7 @@ export default function HomeClient() {
                     className="w-6 h-6 rounded-full object-cover"
                   />
                   <div className="flex flex-col leading-tight">
-                    <span className="font-medium text-gray-800">
-                      {selectedPost.author.name}
-                    </span>
+                    <span className="font-medium text-gray-800">{selectedPost.author.name}</span>
                     <span className="text-xs text-gray-500">{selectedPost.date}</span>
                   </div>
                 </div>
@@ -254,23 +271,27 @@ export default function HomeClient() {
 // ✅ Default post data
 const INITIAL_POSTS: Post[] = [
   {
-    image: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80",
+    image:
+      "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80",
     category: "Technology",
     title: "The Rise of AI: How Artificial Intelligence is Changing the World",
-    description: "Artificial Intelligence (AI) is transforming industries, from healthcare to finance. Learn how AI is reshaping human work and creativity.",
+    description:
+      "Artificial Intelligence (AI) is transforming industries, from healthcare to finance. Learn how AI is reshaping human work and creativity.",
     author: { name: "John Doe", img: "https://randomuser.me/api/portraits/men/10.jpg" },
     date: "August 15, 2023",
     like: { count: 0, isliked: false },
-    readTime: ""
+    readTime: "",
   },
   {
-    image: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80",
+    image:
+      "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80",
     category: "Design",
     title: "Design Thinking: The Art of Solving Real Problems",
-    description: "Discover how design thinking drives innovation and helps businesses build user-centered products.",
+    description:
+      "Discover how design thinking drives innovation and helps businesses build user-centered products.",
     author: { name: "Sarah Lee", img: "https://randomuser.me/api/portraits/women/20.jpg" },
     date: "September 2, 2023",
     like: { count: 0, isliked: false },
-    readTime: ""
-  }
+    readTime: "",
+  },
 ];
