@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "bun server.js",
+    "start": "node server.js",
     "dev": "nodemon server.js"
   },
   "keywords": [],
