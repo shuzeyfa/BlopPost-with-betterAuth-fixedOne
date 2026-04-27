@@ -22,7 +22,9 @@ export default function Header({ value }: headerProps) {
   useEffect(() => {
     const fetchUser = async () => {
       const session = await authClient.getSession();
-      const data = session?.data?.user;
+      const data = session?.data?.user as
+        | { name?: string; email?: string; image?: string | null; bio?: string | null }
+        | undefined;
       setSession({
         name: data?.name || "",
         email: data?.email || "",
