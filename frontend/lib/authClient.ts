@@ -2,8 +2,12 @@ import { inferAdditionalFields } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { auth } from "./auth";
 
+const authBaseUrl =
+  process.env.NEXT_PUBLIC_BETTER_AUTH_URL ||
+  process.env.BETTER_AUTH_URL ||
+  "http://localhost:3000";
+
 export const authClient = createAuthClient({
-  // Use same-origin auth route in both local and deployed environments.
-  baseURL: "/api/auth",
+  baseURL: authBaseUrl,
   plugins: [inferAdditionalFields<typeof auth>()],
 });
