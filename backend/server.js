@@ -31,6 +31,7 @@ const corsOptions = {
 const app = express();
 app.use(cors(corsOptions));
 app.use(express.json());
+const API_BASE_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
 
 // --- Setup file upload folders ---
 const uploadDir = path.join(process.cwd(), "uploads");
@@ -76,7 +77,7 @@ app.post("/upload/user", uploadUser.single("image"), (req, res) => {
   if (!req.file)
     return res.status(400).json({ message: "No image file uploaded" });
 
-  const url = `${process.env.BASE_URL}/uploads/user/${req.file.filename}`;
+  const url = `${API_BASE_URL}/uploads/user/${req.file.filename}`;
   res.status(200).json({ message: "✅ User image uploaded", url });
 });
 
@@ -85,7 +86,7 @@ app.post("/upload/post", uploadPost.single("image"), (req, res) => {
   if (!req.file)
     return res.status(400).json({ message: "No image file uploaded" });
 
-  const url = `${process.env.BASE_URL}/uploads/post/${req.file.filename}`;
+  const url = `${API_BASE_URL}/uploads/post/${req.file.filename}`;
   res.status(200).json({ message: "✅ Post image uploaded", url });
 });
 
