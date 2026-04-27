@@ -14,7 +14,7 @@ function SubmitButton() {
     <Button
       type="submit"
       disabled={pending}
-      className="w-full h-11 rounded-xl bg-black text-white hover:bg-gray-900"
+      className={`w-full h-11 rounded-xl bg-black text-white hover:bg-gray-900 ${pending ? "hover:cursor-not-allowed" : "cursor-pointer"} `}
     >
       {pending ? (
         <>

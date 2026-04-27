@@ -64,16 +64,6 @@ export default function Header({ value }: headerProps) {
               All Posts
             </a>
             <a
-              href="/about"
-              className={`hover:text-blue-500 border-b-2 ${
-                value === "about"
-                  ? "border-blue-500"
-                  : "border-transparent"
-              } cursor-pointer`}
-            >
-              About
-            </a>
-            <a
               href="/profile"
               className={`hover:text-blue-500 border-b-2 ${
                 value === "profile"
@@ -92,6 +82,17 @@ export default function Header({ value }: headerProps) {
               } cursor-pointer`}
             >
               New Post
+            </a>
+
+            <a
+              href="/about"
+              className={`hover:text-blue-500 border-b-2 ${
+                value === "about"
+                  ? "border-blue-500"
+                  : "border-transparent"
+              } cursor-pointer`}
+            >
+              About
             </a>
           </div>
         )}
@@ -115,16 +116,6 @@ export default function Header({ value }: headerProps) {
             All Posts
           </a>
           <a
-            href="/about"
-            className={`hover:text-blue-500 border-b-2 ${
-              value === "about"
-                ? "border-blue-500"
-                : "border-transparent"
-            } cursor-pointer`}
-          >
-            About
-          </a>
-          <a
             href="/profile"
             className={`hover:text-blue-500 border-b-2 ${
               value === "profile"
@@ -133,6 +124,16 @@ export default function Header({ value }: headerProps) {
             } cursor-pointer`}
           >
             Profile
+          </a>
+          <a
+            href="/about"
+            className={`hover:text-blue-500 border-b-2 ${
+              value === "about"
+                ? "border-blue-500"
+                : "border-transparent"
+            } cursor-pointer`}
+          >
+            About
           </a>
         </nav>
 
