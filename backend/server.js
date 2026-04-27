@@ -12,9 +12,20 @@ mongoose
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.log(err));
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://blop-post-with-better-auth-fixed-on.vercel.app",
+  "https://bloppost-with-betterauth-fixedone-1.onrender.com",
+];
+
 const corsOptions = {
-  origin: "*", // Allow requests from your frontend
-  credentials: true, // Allow credentials (cookies) to be sent
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
 };
 
 const app = express();
@@ -65,7 +76,7 @@ app.post("/upload/user", uploadUser.single("image"), (req, res) => {
   if (!req.file)
     return res.status(400).json({ message: "No image file uploaded" });
 
-  const url = `BASE_URL/uploads/user/${req.file.filename}`;
+  const url = `${process.env.BASE_URL}/uploads/user/${req.file.filename}`;
   res.status(200).json({ message: "✅ User image uploaded", url });
 });
 
@@ -74,7 +85,7 @@ app.post("/upload/post", uploadPost.single("image"), (req, res) => {
   if (!req.file)
     return res.status(400).json({ message: "No image file uploaded" });
 
-  const url = `BASE_URL/uploads/post/${req.file.filename}`;
+  const url = `${process.env.BASE_URL}/uploads/post/${req.file.filename}`;
   res.status(200).json({ message: "✅ Post image uploaded", url });
 });
 
@@ -203,5 +214,5 @@ app.delete("/posts", async (req, res) => {
 
 
 // ✅ Start the server
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
