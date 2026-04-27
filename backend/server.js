@@ -65,7 +65,7 @@ app.post("/upload/user", uploadUser.single("image"), (req, res) => {
   if (!req.file)
     return res.status(400).json({ message: "No image file uploaded" });
 
-  const url = `BASE_URL/uploads/user/${req.file.filename}`;
+  const url = `${process.env.BASE_URL}/uploads/user/${req.file.filename}`;
   res.status(200).json({ message: "✅ User image uploaded", url });
 });
 
