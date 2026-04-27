@@ -26,9 +26,7 @@ export default function ProfilePage() {
   useEffect(() => {
     const fetchUser = async () => {
       const session = await authClient.getSession();
-      const data = session?.data?.user as
-        | { name?: string; email?: string; image?: string | null; bio?: string | null }
-        | undefined;
+      const data = session?.data?.user;
       setUser({
         name: data?.name || "",
         email: data?.email || "",
@@ -84,7 +82,7 @@ export default function ProfilePage() {
       name: formData.name,
       image: imageUrl,
       bio: formData.bio,
-    } as Record<string, unknown>);
+    });
 
     // Fix: throw when there *is* an error
     if (error) {
@@ -97,9 +95,7 @@ export default function ProfilePage() {
 
     const session = await authClient.getSession();
     console.log("🔄 Refetched session:", session);
-    const updatedUser = session?.data?.user as
-      | { name?: string; email?: string; image?: string | null; bio?: string | null }
-      | undefined;  
+    const updatedUser = session?.data?.user;
     if (updatedUser) {
       setUser({
         name: updatedUser.name || "",
