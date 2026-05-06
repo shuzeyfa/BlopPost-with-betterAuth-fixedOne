@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import mongoose from "mongoose";
+import { createClient } from "redis";
 import cors from "cors";
 import multer from "multer";
 import path from "path";
@@ -11,6 +12,15 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.log(err));
+
+const redis = createClient({ url: process.env.REDIS_URL });
+
+redis.on("error", (err) => {
+  console.log("❌ Redis connection error:", err);
+});
+
+await redis.connect();
+console.log("✅ Redis connected", process.env.REDIS_URL);
 
 const corsOptions = {
   origin: "*", // Allow requests from your frontend
@@ -104,7 +114,8 @@ app.post("/posts", async (req, res) => {
       readTime: post.readTime || calculateReadTime(post.description || "temp min"),
     }));
     const posts = await Post.insertMany(DynamicPost);
-    res.status(201).json({message: "inserted Pots:- ", posts})
+    await redis.del("posts");
+    res.status(201).json({message: "inserted Posts:- ", posts})
   } catch (error) {
     console.error("❌ Backend error while creating post:", error);
     res.status(500).json({ message: "❌ Error creating post(s)", error });
@@ -114,7 +125,24 @@ app.post("/posts", async (req, res) => {
 // 📖 Get all posts
 app.get("/posts", async (req, res) => {
   try {
+
+    //first we will check if it is in Redis
+    const cached = await redis.get("posts");
+
+    if (cached) {
+      console.log("✅ Posts fetched from Redis cache");
+      return res.status(200).json(JSON.parse(cached));
+    }
+
+    // if it is not in redis, fetch from mongodb
     const posts = await Post.find();
+
+    // then we will store it in redis for next time
+    await redis.set("posts", JSON.stringify(posts), {
+      EX: 600,
+    });
+
+    console.log("✅ Posts fetched from MongoDB and cached in Redis");
     res.status(200).json(posts);
   } catch (error) {
     res.status(500).json({ message: "❌ Error fetching posts", error });
@@ -124,8 +152,21 @@ app.get("/posts", async (req, res) => {
 // 📖 Get one post by ID
 app.get("/posts/:id", async (req, res) => {
   try {
+    const key = `post:${req.params.id}`;
+
+    const cached = await redis.get(key);
+
+    if (cached) {
+      console.log("⚡ Post from Redis");
+      return res.status(200).json(JSON.parse(cached));
+    }
+
     const post = await Post.findById(req.params.id);
+
     if (!post) return res.status(404).json({ message: "Post not found" });
+
+    await redis.set(key, JSON.stringify(post), { EX: 600 });
+
     res.status(200).json(post);
   } catch (error) {
     res.status(500).json({ message: "❌ Error fetching post", error });
@@ -141,6 +182,8 @@ app.put("/posts/:id", async (req, res) => {
       { new: true } // return updated document
     );
     if (!updatedPost) return res.status(404).json({ message: "Post not found" });
+    await redis.del("posts");
+    await redis.del(`post:${req.params.id}`);
     res.status(200).json({ message: "✅ Post updated", post: updatedPost });
   } catch (error) {
     res.status(500).json({ message: "❌ Error updating post", error });
@@ -169,6 +212,8 @@ app.patch("/posts/:id", async (req, res) => {
       return res.status(404).json({ error: "Post not found" });
     }
 
+    await redis.del("posts");
+    await redis.del(`post:${id}`);
     res.json(updated);
   } catch (err) {
     console.error("❌ PATCH /posts error:", err); // <== add this line
@@ -183,6 +228,8 @@ app.delete("/posts/:id", async (req, res) => {
   try {
     const deletedPost = await Post.findByIdAndDelete(req.params.id);
     if (!deletedPost) return res.status(404).json({ message: "Post not found" });
+    await redis.del("posts");
+    await redis.del(`post:${req.params.id}`);
     res.status(200).json({ message: "✅ Post deleted", post: deletedPost });
   } catch (error) {
     res.status(500).json({ message: "❌ Error deleting post", error });
@@ -193,6 +240,7 @@ app.delete("/posts/:id", async (req, res) => {
 app.delete("/posts", async (req, res) => {
   try {
     const result = await Post.deleteMany({});
+    await redis.del("posts");
     res.status(200).json({
       message: `✅ All posts deleted successfully (${result.deletedCount} deleted)`
     });
