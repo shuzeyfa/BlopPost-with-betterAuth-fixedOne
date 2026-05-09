@@ -249,6 +249,11 @@ app.delete("/posts", async (req, res) => {
   }
 });
 
+// Health Endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 
 // ✅ Start the server
 const PORT = 5000;
