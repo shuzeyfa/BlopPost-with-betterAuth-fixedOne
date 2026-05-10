@@ -19,8 +19,17 @@ redis.on("error", (err) => {
   console.log("❌ Redis connection error:", err);
 });
 
-await redis.connect();
-console.log("✅ Redis connected", process.env.REDIS_URL);
+try {
+
+  await redis.connect();
+
+  console.log("✅ Redis connected");
+
+} catch (err) {
+
+  console.log("❌ Redis connection failed:", err);
+
+}
 
 const corsOptions = {
   origin: "*", // Allow requests from your frontend
@@ -126,8 +135,17 @@ app.post("/posts", async (req, res) => {
 app.get("/posts", async (req, res) => {
   try {
 
-    //first we will check if it is in Redis
-    const cached = await redis.get("posts");
+    let cached = null;
+
+    try {
+
+      cached = await redis.get("posts");
+
+    } catch (err) {
+
+      console.log("❌ Redis GET failed:", err);
+
+    }
 
     if (cached) {
       console.log("✅ Posts fetched from Redis cache");
@@ -138,9 +156,13 @@ app.get("/posts", async (req, res) => {
     const posts = await Post.find();
 
     // then we will store it in redis for next time
-    await redis.set("posts", JSON.stringify(posts), {
-      EX: 600,
-    });
+    try {
+      await redis.set("posts", JSON.stringify(posts), {
+        EX: 600,
+      });
+    } catch (err) {
+      console.log("❌ Redis cache write failed:", err);
+    }
 
     console.log("✅ Posts fetched from MongoDB and cached in Redis");
     res.status(200).json(posts);
@@ -249,9 +271,64 @@ app.delete("/posts", async (req, res) => {
   }
 });
 
-// Health Endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
+// ================= HEALTH CHECK =================
+
+// Full health check
+app.get("/health", async (req, res) => {
+
+  try {
+
+    // MongoDB ping
+    await mongoose.connection.db.admin().ping();
+
+    // Redis ping
+    await redis.ping();
+
+    res.status(200).json({
+      status: "ok",
+      mongo: "connected",
+      redis: "connected",
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (error) {
+
+    console.error("❌ Health check failed:", error);
+
+    res.status(500).json({
+      status: "error",
+      mongo: mongoose.connection.readyState === 1
+        ? "connected"
+        : "disconnected",
+
+      redis: redis.isOpen
+        ? "connected"
+        : "disconnected",
+
+      error: error.message,
+    });
+  }
+});
+
+
+// HEAD version (better for uptime monitors)
+app.head("/health", async (req, res) => {
+
+  try {
+
+    await mongoose.connection.db.admin().ping();
+
+    await redis.ping();
+
+    res.sendStatus(200);
+
+  } catch (error) {
+
+    console.error("❌ HEAD health failed:", error);
+
+    res.sendStatus(500);
+  }
 });
 
 
