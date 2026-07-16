@@ -129,33 +129,45 @@ export default function ProfilePage() {
 
 
 
+  const inputStyle =
+    "w-full bg-canvas border border-edge-heavy text-ink placeholder:text-ash-dim px-3 py-2.5 focus:outline-none focus:border-em transition-colors";
+  const labelStyle =
+    "block font-mono text-xs uppercase tracking-[0.2em] text-ash mb-2";
+
   return (
-    <main className="min-h-screen bg-linear-to-br from-blue-50 via-white to-blue-100 flex items-center justify-center py-12 px-4">
-      <div className="w-full max-w-2xl bg-white/70 backdrop-blur-xl rounded-3xl shadow-2xl border border-blue-100 p-8 transition-transform duration-300 hover:scale-[1.01]">
+    <main className="min-h-screen bg-canvas text-ink grid-texture flex items-center justify-center py-12 px-4">
+      <div className="w-full max-w-2xl bg-panel border border-edge p-8 animate-rise">
         {/* Header */}
+        <p className="font-mono text-xs uppercase tracking-[0.3em] text-em mb-6">
+          [ Profile ]
+        </p>
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
           <div className="relative">
             {user.image ? (
               <img
                 src={user.image}
                 alt="Profile"
-                className="w-32 h-32 rounded-full object-cover border-4 border-blue-500 shadow-lg"
+                className="w-32 h-32 rounded-full object-cover border-2 border-em"
               />
             ) : (
-              <div className="w-32 h-32 rounded-full bg-blue-600 text-white flex items-center justify-center text-4xl font-bold shadow-lg">
+              <div className="w-32 h-32 rounded-full bg-em text-canvas flex items-center justify-center text-4xl font-bold">
                 {user.name.charAt(0).toUpperCase()}
               </div>
             )}
           </div>
 
           <div className="flex-1 text-center sm:text-left">
-            <h1 className="text-3xl font-bold text-gray-800">{user.name}</h1>
-            <p className="text-gray-500">{user.email}</p>
-            <p className="mt-2 text-gray-700">{user.bio || "No bio added yet."}</p>
+            <h1 className="text-3xl font-bold tracking-tight text-ink">{user.name}</h1>
+            <p className="font-mono text-sm text-ash-dim mt-1">{user.email}</p>
+            <p className="mt-3 text-ash leading-relaxed">{user.bio || "No bio added yet."}</p>
 
             <button
               onClick={() => setIsEditing(!isEditing)}
-              className="mt-4 bg-blue-600 text-white px-5 py-2 rounded-full font-medium shadow-md hover:bg-blue-700 transition"
+              className={`mt-5 px-5 py-2 font-medium transition-colors cursor-pointer ${
+                isEditing
+                  ? "border border-edge-heavy text-ash hover:text-ink hover:border-em"
+                  : "bg-em text-canvas hover:bg-em-light"
+              }`}
             >
               {isEditing ? "Cancel" : "Edit Profile"}
             </button>
@@ -164,87 +176,89 @@ export default function ProfilePage() {
 
         {isEditing && (
           <>
-            <hr className="my-8 border-gray-200" />
+            <hr className="my-8 border-edge" />
             <form onSubmit={handleSave} className="space-y-6">
               <div>
-                <label className="block text-gray-700 font-semibold mb-2">Name</label>
+                <label className={labelStyle}>Name</label>
                 <input
                   type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className={inputStyle}
                 />
               </div>
 
               <div>
-                <label className="block text-gray-700 font-semibold mb-2">Email</label>
+                <label className={labelStyle}>Email</label>
                 <input
                   type="email"
                   name="email"
                   disabled
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full bg-panel-2 border border-edge text-ash-dim px-3 py-2.5 cursor-not-allowed"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-700 font-semibold mb-2">Bio</label>
+                <label className={labelStyle}>Bio</label>
                 <textarea
                   name="bio"
                   value={formData.bio}
                   onChange={handleChange}
                   rows={3}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className={inputStyle}
                 />
               </div>
 
               {/* Image type selection */}
-              <div className="flex gap-6">
-                <label className="flex items-center gap-2 cursor-pointer">
+              <div className="flex gap-6 text-sm text-ash">
+                <label className="flex items-center gap-2 cursor-pointer hover:text-ink transition-colors">
                   <input
                     type="radio"
                     name="imageType"
                     value="url"
                     checked={formData.imageType === "url"}
                     onChange={handleChange}
+                    className="accent-em"
                   />
-                  <span className="text-gray-700">Use Image URL</span>
+                  <span>Use Image URL</span>
                 </label>
 
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className="flex items-center gap-2 cursor-pointer hover:text-ink transition-colors">
                   <input
                     type="radio"
                     name="imageType"
                     value="upload"
                     checked={formData.imageType === "upload"}
                     onChange={handleChange}
+                    className="accent-em"
                   />
-                  <span className="text-gray-700">Upload Image</span>
+                  <span>Upload Image</span>
                 </label>
               </div>
 
               {formData.imageType === "url" ? (
                 <div>
-                  <label className="block text-gray-700 font-semibold mb-2">Image URL</label>
+                  <label className={labelStyle}>Image URL</label>
                   <input
                     type="text"
                     name="image"
                     value={formData.image}
                     onChange={handleChange}
                     placeholder="Paste your image link"
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className={inputStyle}
                   />
                 </div>
               ) : (
                 <div>
-                  <label className="block text-gray-700 font-semibold mb-2">Upload Image</label>
+                  <label className={labelStyle}>Upload Image</label>
                   <input
                     type="file"
                     accept="image/*"
                     onChange={handleFileChange}
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2"
+                    className={`${inputStyle} file:mr-3 file:border-0 file:bg-em file:text-canvas file:px-3 file:py-1 file:font-medium file:cursor-pointer`}
                   />
                 </div>
               )}
@@ -252,9 +266,9 @@ export default function ProfilePage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-green-600 text-white py-2 rounded-full font-semibold hover:bg-green-700 transition disabled:opacity-70"
+                className="w-full bg-em text-canvas py-3 font-medium hover:bg-em-light transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                {loading ? "Saving..." : "Save Changes"}
+                {loading ? "Saving..." : "Save Changes →"}
               </button>
             </form>
           </>

@@ -5,17 +5,15 @@ import { Loader2, ArrowRight } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { useActionState } from "react";
 import { signInAction } from "../actions/actions";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button
+    <button
       type="submit"
       disabled={pending}
-      className={`w-full h-11 rounded-xl bg-black text-white hover:bg-gray-900 ${pending ? "hover:cursor-not-allowed" : "cursor-pointer"} `}
+      className={`w-full h-11 flex items-center justify-center bg-em text-canvas font-medium hover:bg-em-light transition-colors ${pending ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}`}
     >
       {pending ? (
         <>
@@ -27,7 +25,7 @@ function SubmitButton() {
           Sign In <ArrowRight className="ml-2 h-4 w-4" />
         </>
       )}
-    </Button>
+    </button>
   );
 }
 
@@ -35,29 +33,48 @@ export default function SignInPage() {
   const [state, formAction] = useActionState(signInAction, null);
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden bg-white">
-      
-      {/* Glow effects */}
-      <div className="absolute top-20 left-20 w-72 h-72 bg-purple-300/40 blur-[120px] rounded-full" />
-      <div className="absolute bottom-20 right-20 w-72 h-72 bg-blue-300/40 blur-[120px] rounded-full" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#f8fafc,white)]" />
+    <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden bg-canvas grid-texture">
 
-      <div className="relative z-10 w-full max-w-md rounded-3xl border border-gray-200 bg-white/70 backdrop-blur-xl shadow-2xl p-8">
+      {/* Glow effects */}
+      <div className="pointer-events-none absolute top-20 left-20 w-72 h-72 bg-em/10 blur-[140px] rounded-full" />
+      <div className="pointer-events-none absolute bottom-20 right-20 w-72 h-72 bg-em/5 blur-[140px] rounded-full" />
+
+      <div className="relative z-10 w-full max-w-md border border-edge bg-panel/80 backdrop-blur-xl p-8 animate-rise">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+          <div className="flex justify-center mb-5">
+            <span className="flex h-10 w-10 items-center justify-center bg-em font-mono text-lg font-bold text-canvas">
+              B
+            </span>
+          </div>
+          <p className="font-mono text-xs uppercase tracking-[0.3em] text-em mb-3">
+            [ Sign In ]
+          </p>
+          <h1 className="text-3xl font-bold tracking-tight text-ink">
             Welcome back
           </h1>
-          <p className="text-gray-500 mt-2">
+          <p className="text-ash mt-2">
             Continue writing your stories.
           </p>
         </div>
 
         <form action={formAction} className="space-y-4">
-          <Input type="email" name="email" placeholder="Email" required />
-          <Input type="password" name="password" placeholder="Password" required />
+          <input
+            type="email"
+            name="email"
+            placeholder="Email"
+            required
+            className="w-full h-11 px-3 bg-canvas border border-edge-heavy text-ink placeholder:text-ash-dim focus:outline-none focus:border-em transition-colors"
+          />
+          <input
+            type="password"
+            name="password"
+            placeholder="Password"
+            required
+            className="w-full h-11 px-3 bg-canvas border border-edge-heavy text-ink placeholder:text-ash-dim focus:outline-none focus:border-em transition-colors"
+          />
 
           {state?.error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 px-3 py-2">
               {state.error}
             </p>
           )}
@@ -65,9 +82,9 @@ export default function SignInPage() {
           <SubmitButton />
         </form>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
-          Don’t have an account?{" "}
-          <Link href="/signup" className="font-semibold text-black">
+        <p className="text-center text-sm text-ash mt-6">
+          Don't have an account?{" "}
+          <Link href="/signup" className="font-semibold text-em hover:text-em-light transition-colors">
             Create one
           </Link>
         </p>

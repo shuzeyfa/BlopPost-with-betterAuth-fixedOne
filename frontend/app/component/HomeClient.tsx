@@ -118,7 +118,13 @@ export default function HomeClient() {
   };
 
   if (allPosts.length === 0) {
-    return <p className="text-center text-gray-600 mt-10">Loading posts...</p>;
+    return (
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
+        <p className="font-mono text-sm uppercase tracking-[0.3em] text-ash animate-pulse">
+          Loading posts...
+        </p>
+      </div>
+    );
   }
 
   const filteredPosts =
@@ -133,23 +139,29 @@ export default function HomeClient() {
   const visiblePosts = filteredPosts.slice(0, visibleCount);
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-canvas text-ink">
       <Header value={"allpost"} />
 
       {/* Hero Section */}
-      <section className="text-black py-7 mb-6">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <h1 className="text-4xl font-extrabold mb-4">All Posts</h1>
-          <p className="text-lg max-w-2xl mx-auto">
-            Dive into our collection of insightful articles on technology, design, leadership, and
-            more.
+      <section className="relative border-b border-edge grid-texture py-16 mb-10 overflow-hidden">
+        <div className="pointer-events-none absolute -top-32 right-0 w-[420px] h-[420px] rounded-full bg-em/10 blur-[140px]" />
+        <div className="relative max-w-7xl mx-auto px-6">
+          <p className="animate-rise rise-1 font-mono text-xs uppercase tracking-[0.3em] text-em mb-4">
+            [ The Journal ]
+          </p>
+          <h1 className="animate-rise rise-2 text-4xl md:text-6xl font-bold tracking-tight">
+            All Posts
+          </h1>
+          <p className="animate-rise rise-3 mt-4 text-lg max-w-2xl text-ash leading-relaxed">
+            Dive into our collection of insightful articles on technology,
+            design, leadership, and more.
           </p>
         </div>
       </section>
 
       {/* Filter Buttons */}
-      <div className="hidden md:block max-w-7xl mx-auto px-4 mb-6">
-        <div className="flex justify-center space-x-4">
+      <div className="hidden md:block max-w-7xl mx-auto px-6 mb-10">
+        <div className="flex flex-wrap gap-2">
           {["All", "Technology", "Design", "JavaScript", "Leadership", "Cloud", "UI/UX"].map(
             (category) => (
               <button
@@ -159,10 +171,10 @@ export default function HomeClient() {
                   setVisibleCount(6);
                   setSelectedPost(null);
                 }}
-                className={`px-4 py-2 rounded-full font-medium ${
+                className={`px-4 py-1.5 font-mono text-xs uppercase tracking-widest border transition-colors cursor-pointer ${
                   activeFilter === category
-                    ? "bg-blue-600 text-white"
-                    : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-100"
+                    ? "bg-em text-canvas border-em"
+                    : "bg-transparent text-ash border-edge-heavy hover:border-em hover:text-em"
                 }`}
               >
                 {category}
@@ -173,7 +185,7 @@ export default function HomeClient() {
       </div>
 
       {/* Mobile Filter */}
-      <div className="flex justify-end md:hidden max-w-7xl mx-auto px-4 mb-6 relative">
+      <div className="flex justify-end md:hidden max-w-7xl mx-auto px-6 mb-8 relative">
         <select
           onChange={(e) => {
             setActiveFilter(e.target.value);
@@ -181,7 +193,7 @@ export default function HomeClient() {
             setSelectedPost(null);
           }}
           value={activeFilter}
-          className="border border-gray-300 rounded-md px-3 py-1.5 w-44 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          className="border border-edge-heavy bg-panel text-ink font-mono text-xs uppercase tracking-widest px-3 py-2 w-44 focus:outline-none focus:border-em"
           name="filter"
         >
           {["All", "Technology", "Design", "JavaScript", "Leadership", "Cloud", "UI/UX"].map(
@@ -198,48 +210,48 @@ export default function HomeClient() {
       {selectedPost && (
         <section
           ref={selectedPostRef}
-          className="max-w-7xl mx-auto mb-12 px-4 flex flex-col md:flex-row items-center gap-8 bg-white shadow-md rounded-2xl overflow-hidden p-6"
+          className="max-w-7xl mx-auto mb-12 flex flex-col md:flex-row items-center gap-8 bg-panel border border-edge overflow-hidden p-6"
         >
           <div className="md:w-1/2 w-full">
             <img
               src={selectedPost.image}
               alt={selectedPost.title}
-              className="w-full h-80 object-cover rounded-xl"
+              className="w-full h-80 object-cover"
             />
           </div>
 
           <div className="md:w-1/2 w-full flex flex-col justify-between">
             <div>
-              <span className="text-sm border bg-gray-100 border-gray-400 rounded-2xl p-2 font-semibold text-blue-600 uppercase tracking-wide">
+              <span className="font-mono text-xs uppercase tracking-widest text-em border border-edge-heavy px-3 py-1.5">
                 {selectedPost.category}
               </span>
-              <h2 className="text-xl font-bold text-gray-900 mt-6 leading-tight">
+              <h2 className="text-2xl font-bold text-ink mt-6 leading-tight">
                 {selectedPost.title}
               </h2>
-              <p className="text-gray-600 mt-4 text-base leading-relaxed">
+              <p className="text-ash mt-4 text-base leading-relaxed">
                 {selectedPost.description}
               </p>
             </div>
 
-            <div className="flex items-center justify-between text-sm text-gray-500 pt-7 border-t border-gray-100">
+            <div className="flex items-center justify-between text-sm text-ash-dim pt-7 mt-6 border-t border-edge">
               <div className="flex items-center justify-between w-full">
                 <div className="gap-2 flex items-center">
                   <img
                     src={selectedPost.author.img}
                     alt={selectedPost.author.name}
-                    className="w-6 h-6 rounded-full object-cover"
+                    className="w-7 h-7 rounded-full object-cover border border-edge-heavy"
                   />
                   <div className="flex flex-col leading-tight">
-                    <span className="font-medium text-gray-800">{selectedPost.author.name}</span>
-                    <span className="text-xs text-gray-500">{selectedPost.date}</span>
+                    <span className="font-medium text-ink">{selectedPost.author.name}</span>
+                    <span className="font-mono text-xs text-ash-dim">{selectedPost.date}</span>
                   </div>
                 </div>
-                <div className="flex gap-2 text-gray-400">
+                <div className="flex gap-3 text-ash-dim">
                   <span
                     onClick={() => selectedPost._id && handleLike(selectedPost._id)}
-                    className="flex gap-1 cursor-pointer"
+                    className="flex gap-1 cursor-pointer hover:text-em transition-colors"
                   >
-                    <Heart fill={selectedPost.like.isliked ? "red" : "none"} size={18} />{" "}
+                    <Heart fill={selectedPost.like.isliked ? "#10b981" : "none"} stroke={selectedPost.like.isliked ? "#10b981" : "currentColor"} size={18} />{" "}
                     {selectedPost.like.count}
                   </span>
                   <span className="flex gap-1">
@@ -253,8 +265,8 @@ export default function HomeClient() {
       )}
 
       {/* Posts Grid */}
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {visiblePosts.map((post, index) => (
             <div
               onClick={() => handleSelectPost(post)}
@@ -267,12 +279,12 @@ export default function HomeClient() {
         </div>
 
         {visibleCount < filteredPosts.length && (
-          <div className="flex justify-center mt-8">
+          <div className="flex justify-center mt-12">
             <button
               onClick={() => setVisibleCount(visibleCount + 3)}
-              className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700"
+              className="px-8 py-3 border border-edge-heavy text-ash font-mono text-xs uppercase tracking-[0.2em] hover:border-em hover:text-em transition-colors cursor-pointer"
             >
-              Load More
+              Load More ↓
             </button>
           </div>
         )}

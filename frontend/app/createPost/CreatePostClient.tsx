@@ -97,15 +97,23 @@ export default function CreatePostClient({ session }: CreatePostClientProps) {
     }
   };
 
-  return (
-    <main className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-3xl mx-auto bg-white shadow-lg rounded-lg p-8">
-        <h1 className="text-3xl font-bold mb-6 text-gray-800">Create a New Post</h1>
+  const inputStyle =
+    "w-full bg-canvas border border-edge-heavy text-ink placeholder:text-ash-dim px-3 py-2.5 focus:outline-none focus:border-em transition-colors";
+  const labelStyle =
+    "block font-mono text-xs uppercase tracking-[0.2em] text-ash mb-2";
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+  return (
+    <main className="min-h-screen bg-canvas text-ink py-12 px-4 grid-texture">
+      <div className="max-w-3xl mx-auto bg-panel border border-edge p-8 animate-rise">
+        <p className="font-mono text-xs uppercase tracking-[0.3em] text-em mb-3">
+          [ New Entry ]
+        </p>
+        <h1 className="text-3xl font-bold mb-8 tracking-tight">Create a New Post</h1>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
           {/* Title */}
           <div>
-            <label className="block font-medium text-gray-700 mb-2">Title</label>
+            <label className={labelStyle}>Title</label>
             <input
               type="text"
               name="title"
@@ -114,13 +122,13 @@ export default function CreatePostClient({ session }: CreatePostClientProps) {
               maxLength={100}
               required
               placeholder="Enter post title"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={inputStyle}
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block font-medium text-gray-700 mb-2">Description</label>
+            <label className={labelStyle}>Description</label>
             <textarea
               name="description"
               value={formData.description}
@@ -129,19 +137,19 @@ export default function CreatePostClient({ session }: CreatePostClientProps) {
               required
               placeholder="Write your post content..."
               rows={5}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={inputStyle}
             />
           </div>
 
           {/* Category */}
           <div>
-            <label className="block font-medium text-gray-700 mb-2">Category</label>
+            <label className={labelStyle}>Category</label>
             <select
               name="category"
               value={formData.category}
               onChange={handleChange}
               required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={inputStyle}
             >
               <option value="">Select category</option>
               <option value="Technology">Technology</option>
@@ -154,24 +162,26 @@ export default function CreatePostClient({ session }: CreatePostClientProps) {
           </div>
 
           {/* Image Upload Type */}
-          <div className="flex gap-4">
-            <label className="flex items-center gap-2">
+          <div className="flex gap-6 text-sm text-ash">
+            <label className="flex items-center gap-2 cursor-pointer hover:text-ink transition-colors">
               <input
                 type="radio"
                 name="imageType"
                 value="url"
                 checked={formData.imageType === "url"}
                 onChange={handleChange}
+                className="accent-em"
               />
               Use Image URL
             </label>
-            <label className="flex items-center gap-2">
+            <label className="flex items-center gap-2 cursor-pointer hover:text-ink transition-colors">
               <input
                 type="radio"
                 name="imageType"
                 value="upload"
                 checked={formData.imageType === "upload"}
                 onChange={handleChange}
+                className="accent-em"
               />
               Upload from device
             </label>
@@ -180,7 +190,7 @@ export default function CreatePostClient({ session }: CreatePostClientProps) {
           {/* Image Input */}
           {formData.imageType === "url" ? (
             <div>
-              <label className="block font-medium text-gray-700 mb-2">Image URL</label>
+              <label className={labelStyle}>Image URL</label>
               <input
                 type="text"
                 name="image"
@@ -188,30 +198,30 @@ export default function CreatePostClient({ session }: CreatePostClientProps) {
                 onChange={handleChange}
                 required
                 placeholder="Paste image URL (e.g. from Unsplash)"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={inputStyle}
               />
             </div>
           ) : (
             <div>
-              <label className="block font-medium text-gray-700 mb-2">Upload Image</label>
+              <label className={labelStyle}>Upload Image</label>
               <input
                 type="file"
                 accept="image/*"
                 onChange={handleFileChange}
                 required
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className={`${inputStyle} file:mr-3 file:border-0 file:bg-em file:text-canvas file:px-3 file:py-1 file:font-medium file:cursor-pointer`}
               />
             </div>
           )}
 
           {/* Author */}
           <div>
-            <label className="block font-medium text-gray-700 mb-2">Author</label>
+            <label className={labelStyle}>Author</label>
             <input
               type="text"
               value={session?.user?.name || ""}
               disabled
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100 cursor-not-allowed"
+              className="w-full bg-panel-2 border border-edge text-ash-dim px-3 py-2.5 cursor-not-allowed"
             />
           </div>
 
@@ -219,9 +229,9 @@ export default function CreatePostClient({ session }: CreatePostClientProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition"
+            className="w-full bg-em text-canvas py-3 font-medium hover:bg-em-light transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {loading ? "Creating..." : "Create Post"}
+            {loading ? "Creating..." : "Create Post →"}
           </button>
         </form>
       </div>
