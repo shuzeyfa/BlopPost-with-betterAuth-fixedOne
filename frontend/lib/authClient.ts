@@ -3,6 +3,7 @@ import { createAuthClient } from "better-auth/react";
 import { auth } from "./auth";
 
 export const authClient = createAuthClient({
-  baseURL: "https://blop-post-with-better-auth-fixed-on.vercel.app", // ✅ must start with a slash!
+  // No baseURL: defaults to the current origin, so it works on
+  // localhost in dev and on Vercel in production.
   plugins: [inferAdditionalFields<typeof auth>()],
 });

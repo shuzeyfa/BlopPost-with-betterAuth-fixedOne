@@ -141,7 +141,7 @@ export default function About() {
             <FaLinkedin />
           </a>
           <a
-            href="shuzeyfa4@gmail.com"
+            href="mailto:shuzeyfa4@gmail.com"
             className="hover:text-blue-600 transition-colors"
           >
             <FaEnvelope />

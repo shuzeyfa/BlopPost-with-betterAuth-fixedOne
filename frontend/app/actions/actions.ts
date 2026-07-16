@@ -3,38 +3,59 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { APIError } from "better-auth/api";
 
-export async function signUpAction(formData: FormData) {
+export type AuthFormState = { error: string } | null;
+
+export async function signUpAction(
+    prevState: AuthFormState,
+    formData: FormData
+): Promise<AuthFormState> {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
     const name = formData.get("name") as string;
 
-    await auth.api.signUpEmail({
-        body: {
-            email,
-            password,
-            name,
-            bio: "",
+    try {
+        await auth.api.signUpEmail({
+            body: {
+                email,
+                password,
+                name,
+                bio: "",
+            }
+        })
+    } catch (error) {
+        if (error instanceof APIError) {
+            return { error: error.message };
         }
-    })
+        return { error: "Something went wrong. Please try again." };
+    }
 
     redirect("/")
-    
 }
 
-export async function signInAction(formData: FormData) {
+export async function signInAction(
+    prevState: AuthFormState,
+    formData: FormData
+): Promise<AuthFormState> {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
-    await auth.api.signInEmail({
-        body: {
-            email,
-            password,
+    try {
+        await auth.api.signInEmail({
+            body: {
+                email,
+                password,
+            }
+        })
+    } catch (error) {
+        if (error instanceof APIError) {
+            return { error: error.message };
         }
-    })
+        return { error: "Something went wrong. Please try again." };
+    }
 
     redirect("/")
-    
 }
 
 export async function signOutAction() {

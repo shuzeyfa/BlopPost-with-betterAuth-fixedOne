@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/authClient";
+import { authHeader } from "@/lib/apiClient";
 
 export default function ProfilePage() {
   const [user, setUser] = useState({
@@ -69,6 +70,7 @@ export default function ProfilePage() {
 
       const uploadRes = await fetch(`${baseUrl}/upload/user`, {
         method: "POST",
+        headers: await authHeader(),
         body: fileData,
       });
 

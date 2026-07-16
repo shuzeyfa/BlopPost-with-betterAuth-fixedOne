@@ -31,8 +31,14 @@ try {
 
 }
 
+// Explicit origin list — "*" is rejected by browsers when credentials are used
+const allowedOrigins = (
+  process.env.FRONTEND_ORIGINS ||
+  "http://localhost:3000,https://blop-post-with-better-auth-fixed-on.vercel.app"
+).split(",");
+
 const corsOptions = {
-  origin: "*", // Allow requests from your frontend
+  origin: allowedOrigins,
   credentials: true, // Allow credentials (cookies) to be sent
 };
 
@@ -60,8 +66,27 @@ const createStorage = (folderPath) =>
     },
 });
 
-const uploadUser = multer({ storage: createStorage(userUploadDir) });
-const uploadPost = multer({ storage: createStorage(postUploadDir) });
+// Only accept images, max 5MB
+const imageFileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith("image/")) {
+    cb(null, true);
+  } else {
+    cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE", "Only image files are allowed"));
+  }
+};
+
+const uploadLimits = { fileSize: 5 * 1024 * 1024 }; // 5MB
+
+const uploadUser = multer({
+  storage: createStorage(userUploadDir),
+  fileFilter: imageFileFilter,
+  limits: uploadLimits,
+});
+const uploadPost = multer({
+  storage: createStorage(postUploadDir),
+  fileFilter: imageFileFilter,
+  limits: uploadLimits,
+});
 
 // Serve uploaded files statically
 app.use("/uploads", express.static(uploadDir));
@@ -75,12 +100,75 @@ const postSchema = new mongoose.Schema({
   author: { name: String, img: String },
   date: String,
   like: { count: Number, isliked: Boolean },
+  likedBy: { type: [String], default: [] }, // user ids who liked this post
   readTime: String,
 });
 const Post = mongoose.model("Post", postSchema);
 
+// --- Auth middleware: validate Better Auth session token ---
+// The frontend sends the Better Auth session token as a Bearer header.
+// Sessions live in the same MongoDB database (collection: "session"),
+// so we validate the token directly against it.
+const requireAuth = async (req, res, next) => {
+  try {
+    const header = req.headers.authorization || "";
+    const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+
+    if (!token) {
+      return res.status(401).json({ message: "❌ Not authenticated" });
+    }
+
+    const session = await mongoose.connection.db
+      .collection("session")
+      .findOne({ token });
+
+    if (!session || new Date(session.expiresAt) < new Date()) {
+      return res.status(401).json({ message: "❌ Session expired or invalid" });
+    }
+
+    req.userId = String(session.userId);
+    next();
+  } catch (error) {
+    console.error("❌ Auth middleware error:", error);
+    res.status(500).json({ message: "❌ Error verifying session" });
+  }
+};
+
+// Like requireAuth, but doesn't reject — just resolves the user id if a
+// valid token is present. Used on public GET routes to compute `isliked`.
+const getUserIdFromToken = async (req) => {
+  try {
+    const header = req.headers.authorization || "";
+    const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+    if (!token) return null;
+
+    const session = await mongoose.connection.db
+      .collection("session")
+      .findOne({ token });
+
+    if (!session || new Date(session.expiresAt) < new Date()) return null;
+    return String(session.userId);
+  } catch {
+    return null;
+  }
+};
+
+// Compute per-user `isliked` from likedBy and hide the raw likedBy list
+const shapePost = (post, userId) => {
+  const p = post.toObject ? post.toObject() : post;
+  const likedBy = p.likedBy || [];
+  return {
+    ...p,
+    like: {
+      count: likedBy.length,
+      isliked: userId ? likedBy.includes(userId) : false,
+    },
+    likedBy: undefined,
+  };
+};
+
 // --- Upload User Image ---
-app.post("/upload/user", uploadUser.single("image"), (req, res) => {
+app.post("/upload/user", requireAuth, uploadUser.single("image"), (req, res) => {
   if (!req.file)
     return res.status(400).json({ message: "No image file uploaded" });
 
@@ -89,7 +177,7 @@ app.post("/upload/user", uploadUser.single("image"), (req, res) => {
 });
 
 // --- Upload Post Image ---
-app.post("/upload/post", uploadPost.single("image"), (req, res) => {
+app.post("/upload/post", requireAuth, uploadPost.single("image"), (req, res) => {
   if (!req.file)
     return res.status(400).json({ message: "No image file uploaded" });
 
@@ -100,7 +188,7 @@ app.post("/upload/post", uploadPost.single("image"), (req, res) => {
 
 
 // ➕ Create one or many posts
-app.post("/posts", async (req, res) => {
+app.post("/posts", requireAuth, async (req, res) => {
   try {
     let body = req.body;
 
@@ -134,6 +222,7 @@ app.post("/posts", async (req, res) => {
 // 📖 Get all posts
 app.get("/posts", async (req, res) => {
   try {
+    const userId = await getUserIdFromToken(req);
 
     let cached = null;
 
@@ -147,9 +236,11 @@ app.get("/posts", async (req, res) => {
 
     }
 
+    // Cache holds raw posts (with likedBy); isliked is computed per user
     if (cached) {
       console.log("✅ Posts fetched from Redis cache");
-      return res.status(200).json(JSON.parse(cached));
+      const rawPosts = JSON.parse(cached);
+      return res.status(200).json(rawPosts.map((p) => shapePost(p, userId)));
     }
 
     // if it is not in redis, fetch from mongodb
@@ -165,7 +256,7 @@ app.get("/posts", async (req, res) => {
     }
 
     console.log("✅ Posts fetched from MongoDB and cached in Redis");
-    res.status(200).json(posts);
+    res.status(200).json(posts.map((p) => shapePost(p, userId)));
   } catch (error) {
     res.status(500).json({ message: "❌ Error fetching posts", error });
   }
@@ -174,13 +265,14 @@ app.get("/posts", async (req, res) => {
 // 📖 Get one post by ID
 app.get("/posts/:id", async (req, res) => {
   try {
+    const userId = await getUserIdFromToken(req);
     const key = `post:${req.params.id}`;
 
     const cached = await redis.get(key);
 
     if (cached) {
       console.log("⚡ Post from Redis");
-      return res.status(200).json(JSON.parse(cached));
+      return res.status(200).json(shapePost(JSON.parse(cached), userId));
     }
 
     const post = await Post.findById(req.params.id);
@@ -189,14 +281,14 @@ app.get("/posts/:id", async (req, res) => {
 
     await redis.set(key, JSON.stringify(post), { EX: 600 });
 
-    res.status(200).json(post);
+    res.status(200).json(shapePost(post, userId));
   } catch (error) {
     res.status(500).json({ message: "❌ Error fetching post", error });
   }
 });
 
 // ✏️ Update one post
-app.put("/posts/:id", async (req, res) => {
+app.put("/posts/:id", requireAuth, async (req, res) => {
   try {
     const updatedPost = await Post.findByIdAndUpdate(
       req.params.id,
@@ -212,33 +304,33 @@ app.put("/posts/:id", async (req, res) => {
   }
 });
 
-// for increase like count when clicked and to decrease when it was clicked
-app.patch("/posts/:id", async (req, res) => {
+// Toggle like for the authenticated user
+app.patch("/posts/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { inc } = req.body;
+    const userId = req.userId;
 
-    console.log("PATCH request:", { id, inc }); // 🧩 Debug log
-
-    if (typeof inc !== "number" || ![1, -1].includes(inc)) {
-      return res.status(400).json({ error: "Invalid like change value" });
-    }
-
-    const updated = await Post.findByIdAndUpdate(
-      id,
-      { $inc: { "like.count": inc } },
-      { new: true }
-    );
-    console.log("PATCH request body:", req.body);
-    if (!updated) {
+    const post = await Post.findById(id);
+    if (!post) {
       return res.status(404).json({ error: "Post not found" });
     }
 
+    const alreadyLiked = (post.likedBy || []).includes(userId);
+
+    // add or remove this user from likedBy, keep like.count in sync
+    const updated = await Post.findByIdAndUpdate(
+      id,
+      alreadyLiked
+        ? { $pull: { likedBy: userId }, $inc: { "like.count": -1 } }
+        : { $addToSet: { likedBy: userId }, $inc: { "like.count": 1 } },
+      { new: true }
+    );
+
     await redis.del("posts");
     await redis.del(`post:${id}`);
-    res.json(updated);
+    res.json(shapePost(updated, userId));
   } catch (err) {
-    console.error("❌ PATCH /posts error:", err); // <== add this line
+    console.error("❌ PATCH /posts error:", err);
     res.status(500).json({ error: "Failed to update like" });
   }
 });
@@ -246,7 +338,7 @@ app.patch("/posts/:id", async (req, res) => {
 
 
 // 🗑️ Delete one post
-app.delete("/posts/:id", async (req, res) => {
+app.delete("/posts/:id", requireAuth, async (req, res) => {
   try {
     const deletedPost = await Post.findByIdAndDelete(req.params.id);
     if (!deletedPost) return res.status(404).json({ message: "Post not found" });
@@ -259,7 +351,7 @@ app.delete("/posts/:id", async (req, res) => {
 });
 
 // 🧹 Delete all posts
-app.delete("/posts", async (req, res) => {
+app.delete("/posts", requireAuth, async (req, res) => {
   try {
     const result = await Post.deleteMany({});
     await redis.del("posts");
@@ -331,6 +423,20 @@ app.head("/health", async (req, res) => {
   }
 });
 
+
+// --- Multer / upload error handler (must come after routes) ---
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    const message =
+      err.code === "LIMIT_FILE_SIZE"
+        ? "Image is too large (max 5MB)"
+        : err.code === "LIMIT_UNEXPECTED_FILE"
+          ? "Only image files are allowed"
+          : err.message;
+    return res.status(400).json({ message: `❌ ${message}` });
+  }
+  next(err);
+});
 
 // ✅ Start the server
 const PORT = 5000;

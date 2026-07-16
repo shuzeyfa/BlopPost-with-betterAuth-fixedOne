@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Loader2, ArrowRight } from "lucide-react";
 import { useFormStatus } from "react-dom";
+import { useActionState } from "react";
 import { signUpAction } from "../actions/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,8 @@ function SubmitButton() {
 }
 
 export default function SignUpPage() {
+  const [state, formAction] = useActionState(signUpAction, null);
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden bg-white">
       
@@ -48,10 +51,16 @@ export default function SignUpPage() {
           </p>
         </div>
 
-        <form action={signUpAction} className="space-y-4">
+        <form action={formAction} className="space-y-4">
           <Input type="text" name="name" placeholder="Full Name" required />
           <Input type="email" name="email" placeholder="Email" required />
           <Input type="password" name="password" placeholder="Password" required />
+
+          {state?.error && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {state.error}
+            </p>
+          )}
 
           <SubmitButton />
         </form>

@@ -1,11 +1,8 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { signOutAction } from "./actions/actions"
-import HomeClient from "./homeclient/page";
-import { authClient } from "@/lib/authClient";
+import HomeClient from "./component/HomeClient";
 
 export default async function Home() {
 

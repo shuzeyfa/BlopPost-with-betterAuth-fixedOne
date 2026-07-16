@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { authHeader } from "@/lib/apiClient";
 
 interface CreatePostClientProps {
   session: any;
@@ -47,6 +48,7 @@ export default function CreatePostClient({ session }: CreatePostClientProps) {
 
         const uploadRes = await fetch(`${baseUrl}/upload/post`, {
           method: "POST",
+          headers: await authHeader(),
           body: fileData,
         });
 
@@ -75,7 +77,10 @@ export default function CreatePostClient({ session }: CreatePostClientProps) {
 
       const res = await fetch(`${baseUrl}/posts`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(await authHeader()),
+        },
         body: JSON.stringify(newPost),
       });
 

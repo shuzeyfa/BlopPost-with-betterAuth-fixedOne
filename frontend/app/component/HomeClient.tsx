@@ -5,6 +5,7 @@ import Header from "@/app/component/Header";
 import Footer from "@/app/component/Footer";
 import PostCard from "@/app/component/PostCard";
 import { Heart, MessageCircleCode } from "lucide-react";
+import { authHeader } from "@/lib/apiClient";
 
 type Post = {
   _id?: string;
@@ -30,7 +31,10 @@ export default function HomeClient() {
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        const res = await fetch(`${baseUrl}/posts`);
+        // send the session token so the backend can mark which posts
+        // the current user has liked (isliked)
+        const headers = await authHeader();
+        const res = await fetch(`${baseUrl}/posts`, { headers });
         const data = await res.json();
 
         // ensure it's always an array
@@ -45,11 +49,12 @@ export default function HomeClient() {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
+              ...headers,
             },
             body: JSON.stringify(INITIAL_POSTS),
           });
 
-          const newRes = await fetch(`${baseUrl}/posts`);
+          const newRes = await fetch(`${baseUrl}/posts`, { headers });
           const newData = await newRes.json();
 
           setAllPosts(Array.isArray(newData) ? newData : []);
@@ -80,7 +85,7 @@ export default function HomeClient() {
 
     const inc = post.like.isliked ? -1 : 1;
 
-    // Optimistic UI update
+    // Optimistic UI update — the server decides the real toggle per user
     setAllPosts((prev) =>
       prev.map((p) =>
         p._id === id
@@ -96,11 +101,17 @@ export default function HomeClient() {
     );
 
     try {
-      await fetch(`${baseUrl}/posts/${id}`, {
+      const res = await fetch(`${baseUrl}/posts/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ inc }),
+        headers: await authHeader(),
       });
+
+      // sync with the server's authoritative result
+      if (res.ok) {
+        const updated: Post = await res.json();
+        setAllPosts((prev) => prev.map((p) => (p._id === id ? updated : p)));
+        setSelectedPost((prev) => (prev?._id === id ? updated : prev));
+      }
     } catch (err) {
       console.error("❌ Error updating like:", err);
     }
@@ -245,7 +256,11 @@ export default function HomeClient() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {visiblePosts.map((post, index) => (
-            <div onClick={() => handleSelectPost(post)} key={index} className="cursor-pointer">
+            <div
+              onClick={() => handleSelectPost(post)}
+              key={post._id ?? index}
+              className="cursor-pointer"
+            >
               <PostCard post={post} onLike={() => post._id && handleLike(post._id)} />
             </div>
           ))}
