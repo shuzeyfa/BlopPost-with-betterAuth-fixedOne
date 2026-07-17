@@ -45,7 +45,7 @@ try {
 // Explicit origin list — "*" is rejected by browsers when credentials are used
 const allowedOrigins = (
   process.env.FRONTEND_ORIGINS ||
-  "http://localhost:3000, https://blop-post-with-better-auth-fixed-on.vercel.app, https://blogcraft-with-betterauth.vercel.app/"
+  "http://localhost:3000, https://blop-post-with-better-auth-fixed-on.vercel.app, https://blogcraft-with-betterauth.vercel.app"
 ).split(",");
 
 const corsOptions = {
