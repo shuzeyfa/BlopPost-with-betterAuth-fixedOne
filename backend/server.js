@@ -46,7 +46,10 @@ try {
 const allowedOrigins = (
   process.env.FRONTEND_ORIGINS ||
   "http://localhost:3000, https://blogcraft-with-betterauth.vercel.app"
-).split(",");
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 const corsOptions = {
   origin: allowedOrigins,
@@ -82,8 +85,10 @@ const writeLimiter = rateLimit({
   message: { message: "❌ Too many write requests, please slow down" },
 });
 
-app.use(generalLimiter);
+// CORS must run before the rate limiter so even 429 responses carry
+// CORS headers (otherwise a rate-limited request looks like a CORS error)
 app.use(cors(corsOptions));
+app.use(generalLimiter);
 app.use(express.json({ limit: "100kb" })); // posts are text — 100kb is plenty
 
 // --- Configure multer: keep files in memory, then stream to Cloudinary ---
