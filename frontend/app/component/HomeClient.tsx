@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Header from "@/app/component/Header";
 import Footer from "@/app/component/Footer";
 import PostCard from "@/app/component/PostCard";
-import { Heart, MessageCircleCode } from "lucide-react";
 import { authHeader } from "@/lib/apiClient";
 
 type Post = {
@@ -23,8 +23,7 @@ export default function HomeClient() {
   const [allPosts, setAllPosts] = useState<Post[]>([]);
   const [visibleCount, setVisibleCount] = useState(6);
   const [activeFilter, setActiveFilter] = useState("All");
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const selectedPostRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
 
   // ✅ Fetch posts on mount
@@ -71,10 +70,7 @@ export default function HomeClient() {
   }, [baseUrl]);
 
   const handleSelectPost = (post: Post) => {
-    setSelectedPost(post);
-    setTimeout(() => {
-      selectedPostRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 100);
+    if (post._id) router.push(`/posts/${post._id}`);
   };
 
   const handleLike = async (id: string) => {
@@ -110,7 +106,6 @@ export default function HomeClient() {
       if (res.ok) {
         const updated: Post = await res.json();
         setAllPosts((prev) => prev.map((p) => (p._id === id ? updated : p)));
-        setSelectedPost((prev) => (prev?._id === id ? updated : prev));
       }
     } catch (err) {
       console.error("❌ Error updating like:", err);
@@ -169,7 +164,6 @@ export default function HomeClient() {
                 onClick={() => {
                   setActiveFilter(category);
                   setVisibleCount(6);
-                  setSelectedPost(null);
                 }}
                 className={`px-4 py-1.5 font-mono text-xs uppercase tracking-widest border transition-colors cursor-pointer ${
                   activeFilter === category
@@ -190,7 +184,6 @@ export default function HomeClient() {
           onChange={(e) => {
             setActiveFilter(e.target.value);
             setVisibleCount(6);
-            setSelectedPost(null);
           }}
           value={activeFilter}
           className="border border-edge-heavy bg-panel text-ink font-mono text-xs uppercase tracking-widest px-3 py-2 w-44 focus:outline-none focus:border-em"
@@ -205,64 +198,6 @@ export default function HomeClient() {
           )}
         </select>
       </div>
-
-      {/* Selected Post */}
-      {selectedPost && (
-        <section
-          ref={selectedPostRef}
-          className="max-w-7xl mx-auto mb-12 flex flex-col md:flex-row items-center gap-8 bg-panel border border-edge overflow-hidden p-6"
-        >
-          <div className="md:w-1/2 w-full">
-            <img
-              src={selectedPost.image}
-              alt={selectedPost.title}
-              className="w-full h-80 object-cover"
-            />
-          </div>
-
-          <div className="md:w-1/2 w-full flex flex-col justify-between">
-            <div>
-              <span className="font-mono text-xs uppercase tracking-widest text-em border border-edge-heavy px-3 py-1.5">
-                {selectedPost.category}
-              </span>
-              <h2 className="text-2xl font-bold text-ink mt-6 leading-tight">
-                {selectedPost.title}
-              </h2>
-              <p className="text-ash mt-4 text-base leading-relaxed">
-                {selectedPost.description}
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between text-sm text-ash-dim pt-7 mt-6 border-t border-edge">
-              <div className="flex items-center justify-between w-full">
-                <div className="gap-2 flex items-center">
-                  <img
-                    src={selectedPost.author.img}
-                    alt={selectedPost.author.name}
-                    className="w-7 h-7 rounded-full object-cover border border-edge-heavy"
-                  />
-                  <div className="flex flex-col leading-tight">
-                    <span className="font-medium text-ink">{selectedPost.author.name}</span>
-                    <span className="font-mono text-xs text-ash-dim">{selectedPost.date}</span>
-                  </div>
-                </div>
-                <div className="flex gap-3 text-ash-dim">
-                  <span
-                    onClick={() => selectedPost._id && handleLike(selectedPost._id)}
-                    className="flex gap-1 cursor-pointer hover:text-em transition-colors"
-                  >
-                    <Heart fill={selectedPost.like.isliked ? "#10b981" : "none"} stroke={selectedPost.like.isliked ? "#10b981" : "currentColor"} size={18} />{" "}
-                    {selectedPost.like.count}
-                  </span>
-                  <span className="flex gap-1">
-                    <MessageCircleCode size={18} /> 59
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* Posts Grid */}
       <div className="max-w-7xl mx-auto px-6">

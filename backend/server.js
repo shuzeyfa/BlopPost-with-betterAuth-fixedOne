@@ -45,7 +45,7 @@ try {
 // Explicit origin list — "*" is rejected by browsers when credentials are used
 const allowedOrigins = (
   process.env.FRONTEND_ORIGINS ||
-  "http://localhost:3000,https://blop-post-with-better-auth-fixed-on.vercel.app"
+  "http://localhost:3000, https://blop-post-with-better-auth-fixed-on.vercel.app, https://bloppost-backend.onrender.com"
 ).split(",");
 
 const corsOptions = {
@@ -131,6 +131,16 @@ const postSchema = new mongoose.Schema({
   readTime: String,
 });
 const Post = mongoose.model("Post", postSchema);
+
+// --- Comment Schema ---
+const commentSchema = new mongoose.Schema({
+  postId: { type: String, required: true, index: true },
+  authorId: { type: String, required: true }, // Better Auth user id
+  author: { name: String, img: String },
+  text: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+});
+const Comment = mongoose.model("Comment", commentSchema);
 
 // --- Auth middleware: validate Better Auth session token ---
 // The frontend sends the Better Auth session token as a Bearer header.
@@ -289,25 +299,7 @@ app.post("/posts", writeLimiter, requireAuth, async (req, res) => {
     };
 
     // Author identity comes from the session, not the request body.
-    // Better Auth's mongodb adapter stores users under _id (ObjectId).
-    const userColl = mongoose.connection.db.collection("user");
-    let user = null;
-    if (mongoose.Types.ObjectId.isValid(req.userId)) {
-      user = await userColl.findOne({
-        _id: new mongoose.Types.ObjectId(req.userId),
-      });
-    }
-    if (!user) {
-      // fall back to string id in case the adapter stored plain ids
-      user = await userColl.findOne({ id: req.userId });
-    }
-
-    const author = {
-      name: user?.name || "Unknown",
-      img:
-        user?.image ||
-        "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80",
-    };
+    const author = await getAuthorInfo(req.userId);
 
     const DynamicPost = body.map((post) => ({
       image: post.image || "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80",
@@ -328,6 +320,25 @@ app.post("/posts", writeLimiter, requireAuth, async (req, res) => {
     res.status(500).json({ message: "❌ Error creating post(s)", error });
   }
 });
+
+// Look up a user's public identity (name + avatar) by Better Auth user id.
+// The mongodb adapter stores users under _id (ObjectId), with a string-id fallback.
+const getAuthorInfo = async (userId) => {
+  const userColl = mongoose.connection.db.collection("user");
+  let user = null;
+  if (mongoose.Types.ObjectId.isValid(userId)) {
+    user = await userColl.findOne({ _id: new mongoose.Types.ObjectId(userId) });
+  }
+  if (!user) {
+    user = await userColl.findOne({ id: userId });
+  }
+  return {
+    name: user?.name || "Unknown",
+    img:
+      user?.image ||
+      "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80",
+  };
+};
 
 // 📖 Get all posts (paginated: ?page=1&limit=50, newest first)
 app.get("/posts", async (req, res) => {
@@ -400,6 +411,63 @@ app.get("/posts/:id", async (req, res) => {
     res.status(200).json(shapePost(post, userId));
   } catch (error) {
     res.status(500).json({ message: "❌ Error fetching post", error });
+  }
+});
+
+// 💬 Get comments for a post (public, oldest first)
+app.get("/posts/:id/comments", async (req, res) => {
+  try {
+    const comments = await Comment.find({ postId: req.params.id }).sort({
+      createdAt: 1,
+    });
+    res.status(200).json(comments);
+  } catch (error) {
+    res.status(500).json({ message: "❌ Error fetching comments", error });
+  }
+});
+
+// 💬 Add a comment to a post (auth required)
+app.post("/posts/:id/comments", writeLimiter, requireAuth, async (req, res) => {
+  try {
+    const text = (req.body.text || "").trim();
+    if (!text) return res.status(400).json({ message: "❌ Comment text is required" });
+    if (text.length > 500)
+      return res.status(400).json({ message: "❌ Comment must be 500 characters or less" });
+
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+
+    // Author identity comes from the session, not the request body.
+    const author = await getAuthorInfo(req.userId);
+
+    const comment = await Comment.create({
+      postId: req.params.id,
+      authorId: req.userId,
+      author,
+      text,
+    });
+
+    res.status(201).json(comment);
+  } catch (error) {
+    console.error("❌ Error creating comment:", error);
+    res.status(500).json({ message: "❌ Error creating comment", error });
+  }
+});
+
+// 🗑️ Delete a comment (owner only)
+app.delete("/comments/:id", writeLimiter, requireAuth, async (req, res) => {
+  try {
+    const comment = await Comment.findById(req.params.id);
+    if (!comment) return res.status(404).json({ message: "Comment not found" });
+
+    if (comment.authorId !== req.userId) {
+      return res.status(403).json({ message: "❌ You can only delete your own comments" });
+    }
+
+    await comment.deleteOne();
+    res.status(200).json({ message: "✅ Comment deleted" });
+  } catch (error) {
+    res.status(500).json({ message: "❌ Error deleting comment", error });
   }
 });
 
