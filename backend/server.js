@@ -15,11 +15,14 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// --- Connect to MongoDB ---
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.log(err));
+// --- Connect to MongoDB (fail fast — no point serving without a database) ---
+try {
+  await mongoose.connect(process.env.MONGO_URI);
+  console.log("✅ MongoDB connected");
+} catch (err) {
+  console.error("❌ MongoDB connection failed, exiting:", err.message);
+  process.exit(1);
+}
 
 const redis = createClient({ url: process.env.REDIS_URL });
 
@@ -191,6 +194,20 @@ const shapePost = (post, userId) => {
   };
 };
 
+// Invalidate every cached page of the post list (keys look like posts:1:50)
+const clearPostsCache = async () => {
+  try {
+    const keys = [];
+    for await (const batch of redis.scanIterator({ MATCH: "posts:*", COUNT: 100 })) {
+      // node-redis v5 yields arrays of keys
+      keys.push(...(Array.isArray(batch) ? batch : [batch]));
+    }
+    if (keys.length) await redis.del(keys);
+  } catch (err) {
+    console.log("❌ Redis cache invalidation failed:", err);
+  }
+};
+
 // --- Upload User Image ---
 app.post("/upload/user", writeLimiter, requireAuth, upload.single("image"), async (req, res) => {
   try {
@@ -304,7 +321,7 @@ app.post("/posts", writeLimiter, requireAuth, async (req, res) => {
       readTime: post.readTime || calculateReadTime(post.description || "temp min"),
     }));
     const posts = await Post.insertMany(DynamicPost);
-    await redis.del("posts");
+    await clearPostsCache();
     res.status(201).json({message: "inserted Posts:- ", posts})
   } catch (error) {
     console.error("❌ Backend error while creating post:", error);
@@ -312,36 +329,41 @@ app.post("/posts", writeLimiter, requireAuth, async (req, res) => {
   }
 });
 
-// 📖 Get all posts
+// 📖 Get all posts (paginated: ?page=1&limit=50, newest first)
 app.get("/posts", async (req, res) => {
   try {
     const userId = await getUserIdFromToken(req);
 
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+    const skip = (page - 1) * limit;
+    const cacheKey = `posts:${page}:${limit}`;
+
     let cached = null;
 
     try {
-
-      cached = await redis.get("posts");
-
+      cached = await redis.get(cacheKey);
     } catch (err) {
-
       console.log("❌ Redis GET failed:", err);
-
     }
 
-    // Cache holds raw posts (with likedBy); isliked is computed per user
+    // Cache holds raw {posts, total}; isliked is computed per user
     if (cached) {
       console.log("✅ Posts fetched from Redis cache");
-      const rawPosts = JSON.parse(cached);
+      const { posts: rawPosts, total } = JSON.parse(cached);
+      res.set("X-Total-Count", String(total));
       return res.status(200).json(rawPosts.map((p) => shapePost(p, userId)));
     }
 
     // if it is not in redis, fetch from mongodb
-    const posts = await Post.find();
+    const [posts, total] = await Promise.all([
+      Post.find().sort({ _id: -1 }).skip(skip).limit(limit),
+      Post.countDocuments(),
+    ]);
 
     // then we will store it in redis for next time
     try {
-      await redis.set("posts", JSON.stringify(posts), {
+      await redis.set(cacheKey, JSON.stringify({ posts, total }), {
         EX: 600,
       });
     } catch (err) {
@@ -349,6 +371,7 @@ app.get("/posts", async (req, res) => {
     }
 
     console.log("✅ Posts fetched from MongoDB and cached in Redis");
+    res.set("X-Total-Count", String(total));
     res.status(200).json(posts.map((p) => shapePost(p, userId)));
   } catch (error) {
     res.status(500).json({ message: "❌ Error fetching posts", error });
@@ -407,7 +430,7 @@ app.put("/posts/:id", writeLimiter, requireAuth, async (req, res) => {
       updates,
       { new: true } // return updated document
     );
-    await redis.del("posts");
+    await clearPostsCache();
     await redis.del(`post:${req.params.id}`);
     res.status(200).json({ message: "✅ Post updated", post: updatedPost });
   } catch (error) {
@@ -437,7 +460,7 @@ app.patch("/posts/:id", requireAuth, async (req, res) => {
       { new: true }
     );
 
-    await redis.del("posts");
+    await clearPostsCache();
     await redis.del(`post:${id}`);
     res.json(shapePost(updated, userId));
   } catch (err) {
@@ -459,7 +482,7 @@ app.delete("/posts/:id", writeLimiter, requireAuth, async (req, res) => {
     }
 
     const deletedPost = await Post.findByIdAndDelete(req.params.id);
-    await redis.del("posts");
+    await clearPostsCache();
     await redis.del(`post:${req.params.id}`);
     res.status(200).json({ message: "✅ Post deleted", post: deletedPost });
   } catch (error) {
@@ -471,7 +494,7 @@ app.delete("/posts/:id", writeLimiter, requireAuth, async (req, res) => {
 app.delete("/posts", writeLimiter, requireAuth, async (req, res) => {
   try {
     const result = await Post.deleteMany({ authorId: req.userId });
-    await redis.del("posts");
+    await clearPostsCache();
     res.status(200).json({
       message: `✅ Your posts were deleted successfully (${result.deletedCount} deleted)`
     });
@@ -556,5 +579,38 @@ app.use((err, req, res, next) => {
 });
 
 // ✅ Start the server
-const PORT = 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+const PORT = process.env.PORT || 5000;
+const server = app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+// --- Graceful shutdown (Render sends SIGTERM on every deploy) ---
+const shutdown = async (signal) => {
+  console.log(`\n${signal} received — shutting down gracefully...`);
+
+  // stop accepting new connections, let in-flight requests finish
+  server.close(async () => {
+    try {
+      await mongoose.connection.close();
+      console.log("✅ MongoDB connection closed");
+    } catch (err) {
+      console.error("❌ Error closing MongoDB:", err.message);
+    }
+
+    try {
+      if (redis.isOpen) await redis.quit();
+      console.log("✅ Redis connection closed");
+    } catch (err) {
+      console.error("❌ Error closing Redis:", err.message);
+    }
+
+    process.exit(0);
+  });
+
+  // force-exit if something hangs longer than 10s
+  setTimeout(() => {
+    console.error("⚠️ Forced shutdown after timeout");
+    process.exit(1);
+  }, 10_000).unref();
+};
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
