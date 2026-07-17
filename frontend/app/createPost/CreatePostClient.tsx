@@ -62,10 +62,7 @@ export default function CreatePostClient({ session }: CreatePostClientProps) {
         category: formData.category,
         title: formData.title,
         description: formData.description,
-        author: {
-          name: session?.user?.name,
-          img: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80",
-        },
+        // author identity is derived from the session on the backend
         date: new Date().toLocaleDateString("en-US", {
           year: "numeric",
           month: "long",
