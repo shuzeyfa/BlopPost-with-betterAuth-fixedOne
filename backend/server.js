@@ -3,9 +3,17 @@ import express from "express";
 import mongoose from "mongoose";
 import { createClient } from "redis";
 import cors from "cors";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 import multer from "multer";
-import path from "path";
-import fs from "fs";
+import { v2 as cloudinary } from "cloudinary";
+
+// --- Cloudinary (persistent image storage — Render's disk is ephemeral) ---
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 // --- Connect to MongoDB ---
 mongoose
@@ -43,29 +51,39 @@ const corsOptions = {
 };
 
 const app = express();
+
+// Render/Vercel run behind a reverse proxy — trust the first hop so
+// rate limiting sees the real client IP, not the proxy's
+app.set("trust proxy", 1);
+
+// Security headers (crossOriginResourcePolicy relaxed so the frontend
+// on another domain can load images from /uploads)
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+
+// --- Rate limiting ---
+// General: 300 requests / 15 min per IP (reads are cheap thanks to Redis)
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { message: "❌ Too many requests, please try again later" },
+});
+
+// Strict: 30 requests / 15 min per IP for writes and uploads
+const writeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { message: "❌ Too many write requests, please slow down" },
+});
+
+app.use(generalLimiter);
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({ limit: "100kb" })); // posts are text — 100kb is plenty
 
-// --- Setup file upload folders ---
-const uploadDir = path.join(process.cwd(), "uploads");
-const userUploadDir = path.join(uploadDir, "user");
-const postUploadDir = path.join(uploadDir, "post");
-
-// Ensure directories exist
-[uploadDir, userUploadDir, postUploadDir].forEach((dir) => {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-});
-
-// --- Configure multer (reusable) ---
-const createStorage = (folderPath) =>
-  multer.diskStorage({
-    destination: (req, file, cb) => cb(null, folderPath),
-    filename: (req, file, cb) => {
-      const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
-      cb(null, unique + path.extname(file.originalname));
-    },
-});
-
+// --- Configure multer: keep files in memory, then stream to Cloudinary ---
 // Only accept images, max 5MB
 const imageFileFilter = (req, file, cb) => {
   if (file.mimetype.startsWith("image/")) {
@@ -75,21 +93,26 @@ const imageFileFilter = (req, file, cb) => {
   }
 };
 
-const uploadLimits = { fileSize: 5 * 1024 * 1024 }; // 5MB
-
-const uploadUser = multer({
-  storage: createStorage(userUploadDir),
+const upload = multer({
+  storage: multer.memoryStorage(),
   fileFilter: imageFileFilter,
-  limits: uploadLimits,
-});
-const uploadPost = multer({
-  storage: createStorage(postUploadDir),
-  fileFilter: imageFileFilter,
-  limits: uploadLimits,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
-// Serve uploaded files statically
-app.use("/uploads", express.static(uploadDir));
+// Upload an in-memory file buffer to Cloudinary, returns the secure URL
+const uploadToCloudinary = (buffer, folder) =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: `bloppost/${folder}`,
+        resource_type: "image",
+        // auto-optimize: serve modern formats and reasonable quality
+        transformation: [{ quality: "auto", fetch_format: "auto" }],
+      },
+      (error, result) => (error ? reject(error) : resolve(result.secure_url))
+    );
+    stream.end(buffer);
+  });
 
 // --- Post Schema ---
 const postSchema = new mongoose.Schema({
@@ -97,6 +120,7 @@ const postSchema = new mongoose.Schema({
   category: String,
   title: String,
   description: String,
+  authorId: String, // Better Auth user id of the creator
   author: { name: String, img: String },
   date: String,
   like: { count: Number, isliked: Boolean },
@@ -168,31 +192,78 @@ const shapePost = (post, userId) => {
 };
 
 // --- Upload User Image ---
-app.post("/upload/user", requireAuth, uploadUser.single("image"), (req, res) => {
-  if (!req.file)
-    return res.status(400).json({ message: "No image file uploaded" });
+app.post("/upload/user", writeLimiter, requireAuth, upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file)
+      return res.status(400).json({ message: "No image file uploaded" });
 
-  const url = `${process.env.BASE_URL}/uploads/user/${req.file.filename}`;
-  res.status(200).json({ message: "✅ User image uploaded", url });
+    const url = await uploadToCloudinary(req.file.buffer, "user");
+    res.status(200).json({ message: "✅ User image uploaded", url });
+  } catch (error) {
+    console.error("❌ Cloudinary upload error:", error);
+    res.status(500).json({ message: "❌ Error uploading image" });
+  }
 });
 
 // --- Upload Post Image ---
-app.post("/upload/post", requireAuth, uploadPost.single("image"), (req, res) => {
-  if (!req.file)
-    return res.status(400).json({ message: "No image file uploaded" });
+app.post("/upload/post", writeLimiter, requireAuth, upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file)
+      return res.status(400).json({ message: "No image file uploaded" });
 
-  const url = `${process.env.BASE_URL}/uploads/post/${req.file.filename}`;
-  res.status(200).json({ message: "✅ Post image uploaded", url });
+    const url = await uploadToCloudinary(req.file.buffer, "post");
+    res.status(200).json({ message: "✅ Post image uploaded", url });
+  } catch (error) {
+    console.error("❌ Cloudinary upload error:", error);
+    res.status(500).json({ message: "❌ Error uploading image" });
+  }
 });
 
 
 
+// --- Post input validation ---
+const CATEGORIES = ["Technology", "Design", "JavaScript", "Leadership", "Cloud", "UI/UX"];
+const MAX_POSTS_PER_REQUEST = 10;
+
+// returns an error string, or null if the post is valid
+const validatePostInput = (post) => {
+  if (!post || typeof post !== "object") return "Each post must be an object";
+
+  if (typeof post.title !== "string" || !post.title.trim())
+    return "Title is required";
+  if (post.title.length > 100) return "Title must be 100 characters or less";
+
+  if (typeof post.description !== "string" || !post.description.trim())
+    return "Description is required";
+  if (post.description.length > 400)
+    return "Description must be 400 characters or less";
+
+  if (!CATEGORIES.includes(post.category))
+    return `Category must be one of: ${CATEGORIES.join(", ")}`;
+
+  if (post.image && (typeof post.image !== "string" || post.image.length > 2000))
+    return "Image must be a URL string";
+
+  return null;
+};
+
 // ➕ Create one or many posts
-app.post("/posts", requireAuth, async (req, res) => {
+app.post("/posts", writeLimiter, requireAuth, async (req, res) => {
   try {
     let body = req.body;
 
     if (!Array.isArray(body)) body = [body];
+
+    if (body.length === 0 || body.length > MAX_POSTS_PER_REQUEST) {
+      return res.status(400).json({
+        message: `❌ You can create between 1 and ${MAX_POSTS_PER_REQUEST} posts per request`,
+      });
+    }
+
+    for (const post of body) {
+      const error = validatePostInput(post);
+      if (error) return res.status(400).json({ message: `❌ ${error}` });
+    }
 
     const calculateReadTime = (text) => {
       const words = text?.split(/\s+/).length || 0;
@@ -200,12 +271,34 @@ app.post("/posts", requireAuth, async (req, res) => {
       return `${minutes} min read`;
     };
 
+    // Author identity comes from the session, not the request body.
+    // Better Auth's mongodb adapter stores users under _id (ObjectId).
+    const userColl = mongoose.connection.db.collection("user");
+    let user = null;
+    if (mongoose.Types.ObjectId.isValid(req.userId)) {
+      user = await userColl.findOne({
+        _id: new mongoose.Types.ObjectId(req.userId),
+      });
+    }
+    if (!user) {
+      // fall back to string id in case the adapter stored plain ids
+      user = await userColl.findOne({ id: req.userId });
+    }
+
+    const author = {
+      name: user?.name || "Unknown",
+      img:
+        user?.image ||
+        "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80",
+    };
+
     const DynamicPost = body.map((post) => ({
       image: post.image || "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80",
       category: post.category,
       title: post.title,
       description: post.description,
-      author: post.author,
+      authorId: req.userId,
+      author,
       date: post.date || new Date().toISOString(),
       like: post.like || { count: 0, isliked: false },
       readTime: post.readTime || calculateReadTime(post.description || "temp min"),
@@ -287,15 +380,33 @@ app.get("/posts/:id", async (req, res) => {
   }
 });
 
-// ✏️ Update one post
-app.put("/posts/:id", requireAuth, async (req, res) => {
+// ✏️ Update one post (owner only)
+app.put("/posts/:id", writeLimiter, requireAuth, async (req, res) => {
   try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+
+    // legacy posts (no authorId) are left editable; owned posts are protected
+    if (post.authorId && post.authorId !== req.userId) {
+      return res.status(403).json({ message: "❌ You can only edit your own posts" });
+    }
+
+    // whitelist updatable fields — ownership and like data are untouchable
+    const allowed = ["image", "category", "title", "description", "date", "readTime"];
+    const updates = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
+
+    // validate the merged result so partial updates can't corrupt a post
+    const error = validatePostInput({ ...post.toObject(), ...updates });
+    if (error) return res.status(400).json({ message: `❌ ${error}` });
+
     const updatedPost = await Post.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updates,
       { new: true } // return updated document
     );
-    if (!updatedPost) return res.status(404).json({ message: "Post not found" });
     await redis.del("posts");
     await redis.del(`post:${req.params.id}`);
     res.status(200).json({ message: "✅ Post updated", post: updatedPost });
@@ -337,11 +448,17 @@ app.patch("/posts/:id", requireAuth, async (req, res) => {
 
 
 
-// 🗑️ Delete one post
-app.delete("/posts/:id", requireAuth, async (req, res) => {
+// 🗑️ Delete one post (owner only)
+app.delete("/posts/:id", writeLimiter, requireAuth, async (req, res) => {
   try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+
+    if (post.authorId && post.authorId !== req.userId) {
+      return res.status(403).json({ message: "❌ You can only delete your own posts" });
+    }
+
     const deletedPost = await Post.findByIdAndDelete(req.params.id);
-    if (!deletedPost) return res.status(404).json({ message: "Post not found" });
     await redis.del("posts");
     await redis.del(`post:${req.params.id}`);
     res.status(200).json({ message: "✅ Post deleted", post: deletedPost });
@@ -350,16 +467,16 @@ app.delete("/posts/:id", requireAuth, async (req, res) => {
   }
 });
 
-// 🧹 Delete all posts
-app.delete("/posts", requireAuth, async (req, res) => {
+// 🧹 Delete all of MY posts (scoped to the authenticated user)
+app.delete("/posts", writeLimiter, requireAuth, async (req, res) => {
   try {
-    const result = await Post.deleteMany({});
+    const result = await Post.deleteMany({ authorId: req.userId });
     await redis.del("posts");
     res.status(200).json({
-      message: `✅ All posts deleted successfully (${result.deletedCount} deleted)`
+      message: `✅ Your posts were deleted successfully (${result.deletedCount} deleted)`
     });
   } catch (error) {
-    res.status(500).json({ message: "❌ Error deleting all posts", error });
+    res.status(500).json({ message: "❌ Error deleting posts", error });
   }
 });
 
